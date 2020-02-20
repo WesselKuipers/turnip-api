@@ -1,0 +1,2 @@
+# Settle on line feeds, even for Windows users. This is also enforced by prettier and editorconfig.
+* text eol=lf
