@@ -26,6 +26,7 @@ module.exports = {
   plugins: ['@typescript-eslint', 'simple-import-sort'],
   rules: {
     curly: ['error', 'all'],
+    'no-unused-vars': 'off',
     'simple-import-sort/sort': 'error',
     'arrow-body-style': ['error', 'as-needed'],
     'eslint-comments/no-unused-disable': 'error',
