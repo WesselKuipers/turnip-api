@@ -1,35 +1,61 @@
 import analyze from 'ac-stalk-market-analyzer';
 import { getWeek, getYear } from 'date-fns';
 import Router from 'koa-router';
+import { Client } from 'pg';
 
-const router = new Router({ prefix: 'user' });
+import { ApiContext, TurnipPriceRecord } from '../types';
+
+const router = new Router<{}, ApiContext>();
 const snowflakeRegex = /\d{17}/;
 
-interface UserParams {
-  userId: string;
-  timezone: string;
+async function getTurnipRecord(
+  db: Client,
+  userId: string,
+  week: number,
+  year: number,
+): Promise<TurnipPriceRecord> {
+  const result = await db.query<TurnipPriceRecord>(
+    `SELECT
+    userid, week, year,
+    mon_am AS "monAm",
+    mon_pm AS "monPm",
+    tue_am AS "tueAm",
+    tue_pm AS "tuePm",
+    wed_am AS "wedAm",
+    wed_pm AS "wedPm",
+    thu_am AS "thuAm",
+    thu_pm AS "thuPm",
+    fri_am AS "friAm",
+    fri_pm AS "friPm",
+    sat_am AS "satAm",
+    sat_pm AS "satPm"
+    FROM price
+    WHERE userid = $1 AND week = $2 AND year = $3`,
+    [userId, week, year],
+  );
+
+  return result.rows[0];
 }
 
-interface TurnipPriceRecord {
-  userId: number;
-  week: number;
-  year: number;
-  monAm?: number;
-  monPm?: number;
-  tueAm?: number;
-  tuePm?: number;
-  wedAm?: number;
-  wedPm?: number;
-  thuAm?: number;
-  thuPm?: number;
-  friAm?: number;
-  friPm?: number;
-  satAm?: number;
-  satPm?: number;
+function getPricesFromRecord({
+  monAm,
+  monPm,
+  tueAm,
+  tuePm,
+  wedAm,
+  wedPm,
+  thuAm,
+  thuPm,
+  friAm,
+  friPm,
+  satAm,
+  satPm,
+}: TurnipPriceRecord): number[] {
+  return [monAm, monPm, tueAm, tuePm, wedAm, wedPm, thuAm, thuPm, friAm, friPm, satAm, satPm];
 }
 
 router.use('/:userId', async (ctx, next) => {
-  const { userId } = ctx.params as UserParams;
+  const { userId } = ctx.params;
 
   if (!userId || !userId.match(snowflakeRegex)) {
     ctx.throw(400, 'User ID is invalid.');
@@ -38,19 +64,41 @@ router.use('/:userId', async (ctx, next) => {
   await next();
 });
 
-router.get('/:userId/turnips', ctx => {
+router.get('/:userId/turnips', async ctx => {
+  const { db } = ctx;
+  const { userId } = ctx.params;
+
   const date = new Date();
+  const week = getWeek(date);
+  const year = getYear(date);
+
+  const record = await getTurnipRecord(db, userId, week, year);
+
+  if (!record) {
+    ctx.throw(404, 'Record not found.');
+  }
 
   ctx.body = {
-    userId: Number(ctx.params.userId),
-    week: getWeek(date),
-    year: getYear(date),
-    prices: [73, 72, 69, 80, 92, 112, 98, 95, 35, 32, 20, 17],
+    record,
+    prices: getPricesFromRecord(record),
   };
 });
 
-router.get('/:userId/turnips/pattern', ctx => {
-  ctx.body = { pattern: analyze([73, 72, 69, 80, 92, 112, 98, 95, 35, 32, 20, 17]) };
+router.get('/:userId/turnips/pattern', async ctx => {
+  const { db } = ctx;
+  const { userId } = ctx.params;
+
+  const date = new Date();
+  const week = getWeek(date);
+  const year = getYear(date);
+
+  const record = await getTurnipRecord(db, userId, week, year);
+
+  if (!record) {
+    ctx.throw(404, 'Record not found.');
+  }
+
+  ctx.body = { pattern: analyze(getPricesFromRecord(record)) };
 });
 
 export default router;
