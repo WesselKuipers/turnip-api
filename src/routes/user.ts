@@ -108,18 +108,4 @@ router.post('/:userId/turnips', async ctx => {
   };
 });
 
-router.get('/:userId/turnips/pattern', async ctx => {
-  const { db } = ctx;
-  const { userId } = ctx.params;
-
-  const { week, year } = determineWeekAndYear(ctx);
-  const record = await getTurnipRecord(db, userId, week, year);
-
-  if (!record) {
-    ctx.throw(404, 'Record not found.');
-  }
-
-  ctx.body = { pattern: analyze(getPricesFromRecord(record)) };
-});
-
 export default router;
