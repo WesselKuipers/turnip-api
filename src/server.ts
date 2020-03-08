@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import fs from 'fs';
 import Koa from 'koa';
+import bodyparser from 'koa-bodyparser';
 import json from 'koa-json';
 import logger from 'koa-logger';
 import { Client } from 'pg';
@@ -17,6 +18,10 @@ if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is not set.');
 }
 
+if (!process.env.BOT_TOKEN) {
+  throw new Error('BOT_TOKEN environment variable is not set.');
+}
+
 const setup = fs.readFileSync('setup.sql', 'utf8');
 
 const app = new Koa<{}, ApiContext>();
@@ -28,8 +33,9 @@ client.connect().then(async () => {
 app.context.db = client;
 
 // Middlewares
-app.use(json());
 app.use(logger());
+app.use(json());
+app.use(bodyparser());
 
 // Routes
 app.use(routes.routes());

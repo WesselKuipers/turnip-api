@@ -1,58 +1,17 @@
 import analyze from 'ac-stalk-market-analyzer';
-import { getWeek, getYear } from 'date-fns';
 import Router from 'koa-router';
-import { Client } from 'pg';
 
-import { ApiContext, TurnipPriceRecord } from '../types';
+import { ApiContext } from '../types';
+import {
+  determineDayAndPeriod,
+  determineWeekAndYear,
+  getPricesFromRecord,
+  getTurnipRecord,
+  savePrice,
+} from '../utils';
 
 const router = new Router<{}, ApiContext>();
 const snowflakeRegex = /\d{17}/;
-
-async function getTurnipRecord(
-  db: Client,
-  userId: string,
-  week: number,
-  year: number,
-): Promise<TurnipPriceRecord> {
-  const result = await db.query<TurnipPriceRecord>(
-    `SELECT
-    userid, week, year,
-    mon_am AS "monAm",
-    mon_pm AS "monPm",
-    tue_am AS "tueAm",
-    tue_pm AS "tuePm",
-    wed_am AS "wedAm",
-    wed_pm AS "wedPm",
-    thu_am AS "thuAm",
-    thu_pm AS "thuPm",
-    fri_am AS "friAm",
-    fri_pm AS "friPm",
-    sat_am AS "satAm",
-    sat_pm AS "satPm"
-    FROM price
-    WHERE userid = $1 AND week = $2 AND year = $3`,
-    [userId, week, year],
-  );
-
-  return result.rows[0];
-}
-
-function getPricesFromRecord({
-  monAm,
-  monPm,
-  tueAm,
-  tuePm,
-  wedAm,
-  wedPm,
-  thuAm,
-  thuPm,
-  friAm,
-  friPm,
-  satAm,
-  satPm,
-}: TurnipPriceRecord): number[] {
-  return [monAm, monPm, tueAm, tuePm, wedAm, wedPm, thuAm, thuPm, friAm, friPm, satAm, satPm];
-}
 
 router.use('/:userId', async (ctx, next) => {
   const { userId } = ctx.params;
@@ -68,10 +27,7 @@ router.get('/:userId/turnips', async ctx => {
   const { db } = ctx;
   const { userId } = ctx.params;
 
-  const date = new Date();
-  const week = getWeek(date);
-  const year = getYear(date);
-
+  const { week, year } = determineWeekAndYear(ctx);
   const record = await getTurnipRecord(db, userId, week, year);
 
   if (!record) {
@@ -84,14 +40,55 @@ router.get('/:userId/turnips', async ctx => {
   };
 });
 
+router.post('/:userId/turnips', async ctx => {
+  if (ctx.headers.authorization !== `Bearer ${process.env.BOT_TOKEN}`) {
+    ctx.throw(401, 'Invalid token');
+  }
+
+  const { db } = ctx;
+  const { userId } = ctx.params;
+  const { week, year } = determineWeekAndYear(ctx);
+  const { day, period } = determineDayAndPeriod(ctx);
+  const { price } = ctx.request.body;
+
+  if (!price) {
+    ctx.throw(400, 'No price included');
+  }
+
+  if (price <= 0) {
+    ctx.throw(400, 'Price was a negative value');
+  }
+
+  let currentRecord = await getTurnipRecord(db, userId, week, year);
+  const exists = !!currentRecord;
+
+  if (!exists) {
+    currentRecord = {
+      week,
+      year,
+      userid: userId,
+    };
+  }
+
+  currentRecord[`${day}${period.charAt(0).toUpperCase()}${period.slice(1)}`] = price;
+
+  if (exists) {
+    await db.query(
+      `UPDATE price SET ${day}_${period}=$1 WHERE userid = $2 AND week = $3 AND year = $4`,
+      [price, userId, week, year],
+    );
+  } else {
+    await savePrice(db, currentRecord);
+  }
+
+  ctx.body = { week, year, day, period, userId, body: ctx.request.body, currentRecord };
+});
+
 router.get('/:userId/turnips/pattern', async ctx => {
   const { db } = ctx;
   const { userId } = ctx.params;
 
-  const date = new Date();
-  const week = getWeek(date);
-  const year = getYear(date);
-
+  const { week, year } = determineWeekAndYear(ctx);
   const record = await getTurnipRecord(db, userId, week, year);
 
   if (!record) {
