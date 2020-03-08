@@ -7,8 +7,8 @@
     "url": "https://github.com/wesselkuipers/turnip-api.git"
   },
   "scripts": {
-    "start": "node --inspect=5858 -r ts-node/register ./src/server.ts",
-    "dev": "nodemon",
+    "start": "node -r ts-node/register ./src/server.ts",
+    "dev": "nodemon --inspect",
     "build": "tsc",
     "eslint": "eslint --max-warnings 0 --ext js,md,ts,tsx"
   },
