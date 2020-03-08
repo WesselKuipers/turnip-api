@@ -29,6 +29,7 @@
     "ext": "ts"
   },
   "dependencies": {
+    "@sentry/node": "^5.13.2",
     "ac-stalk-market-analyzer": "^1.0.1",
     "date-fns": "^2.9.0",
     "date-fns-tz": "^1.0.10",

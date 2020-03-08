@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import Koa from 'koa';
@@ -25,6 +26,17 @@ if (!process.env.BOT_TOKEN) {
 const setup = fs.readFileSync('setup.sql', 'utf8');
 
 const app = new Koa<{}, ApiContext>();
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({ dsn: process.env.SENTRY_DSN });
+  app.on('error', (err, ctx) => {
+    Sentry.withScope(scope => {
+      scope.addEventProcessor(event => Sentry.Handlers.parseRequest(event, ctx.request));
+      Sentry.captureException(err);
+    });
+  });
+}
+
 const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: production });
 client.connect().then(async () => {
   await client.query(setup);
