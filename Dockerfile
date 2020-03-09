@@ -16,5 +16,8 @@ COPY wait-for-it.sh ./
 # Build typescript
 RUN yarn tsc
 
+# Set user
+USER node
+
 # Start app
 CMD ["./wait-for-it.sh", "postgres:5432", "--", "node", "./dist/server.js"]
